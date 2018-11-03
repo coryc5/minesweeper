@@ -93,8 +93,8 @@ view model =
                     "😵"
 
         body =
-            div []
-                [ text result
+            div [ style "text-align" "center" ]
+                [ div [ style "font-size" "30px" ] [ text result ]
                 , viewBoard model.board
                 ]
     in
@@ -120,18 +120,19 @@ viewRow y row =
                 |> Array.indexedMap (\x space -> viewSpace ( x, y ) space)
                 |> Array.toList
     in
-    div [] spaces
+    div [ style "display" "flex", style "justify-content" "center" ] spaces
 
 
 viewSpace : Coordinates -> Space -> Html Msg
 viewSpace ( x, y ) space =
     let
         spaceStyles =
-            [ style "width" "20px"
-            , style "height" "20px"
+            [ style "width" "30px"
+            , style "height" "30px"
             , style "display" "inline-block"
             , style "vertical-align" "top"
             , style "text-align" "center"
+            , style "font-size" "24px"
             ]
     in
     case space of
