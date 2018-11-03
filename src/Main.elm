@@ -1,26 +1,20 @@
 module Main exposing (Msg(..), main, update, view)
 
 import Array exposing (Array)
-import Board exposing (Board, Coordinates, Space(..))
 import Browser
+import Game exposing (Board, Coordinates, Game, Space(..), Status(..))
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 
 
 type alias Model =
-    { board : Board
-    , gameOver : Bool
-    }
+    Game
 
 
 init : Model
 init =
-    let
-        board =
-            Board.new 10 [ ( 3, 4 ), ( 4, 4 ) ]
-    in
-    Model board False
+    Game.new 10 [ ( 3, 4 ), ( 4, 4 ) ]
 
 
 main =
@@ -35,17 +29,28 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         ClearSpaces ( x, y ) ->
-            let
-                ( updatedBoard, isGameOver ) =
-                    Board.clearSpaces ( x, y ) model.board
-            in
-            { model | board = updatedBoard, gameOver = isGameOver }
+            model
+                |> Game.clearSpaces ( x, y )
+                |> Game.checkIfPlayerWon
 
 
 view : Model -> Html Msg
 view model =
+    let
+        result =
+            case model.status of
+                InProgress ->
+                    "🙂"
+
+                Won ->
+                    "😄"
+
+                Lost ->
+                    "😵"
+    in
     div []
-        [ viewBoard model.board
+        [ text result
+        , viewBoard model.board
         ]
 
 

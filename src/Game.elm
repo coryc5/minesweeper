@@ -1,12 +1,34 @@
-module Board exposing (Board, Coordinates, Space(..), clearSpaces, new)
+module Game exposing
+    ( Board
+    , Coordinates
+    , Game
+    , Space(..)
+    , Status(..)
+    , checkIfPlayerWon
+    , clearSpaces
+    , new
+    )
 
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Set exposing (Set)
 
 
+type alias Game =
+    { board : Board
+    , status : Status
+    , remainingSafeSpaces : Set Coordinates
+    }
+
+
 type alias Board =
     Array (Array Space)
+
+
+type Status
+    = Lost
+    | Won
+    | InProgress
 
 
 type Space
@@ -23,7 +45,7 @@ type alias Coordinates =
     ( Int, Int )
 
 
-new : Int -> List Coordinates -> Board
+new : Int -> List Coordinates -> Game
 new size mineCoords =
     let
         borderDict =
@@ -31,6 +53,9 @@ new size mineCoords =
 
         minesSet =
             Set.fromList mineCoords
+
+        safeSpacesSet =
+            getSafeSpaces size minesSet
 
         emptySpace =
             Empty False
@@ -48,7 +73,27 @@ new size mineCoords =
                             row
                     )
     in
-    board
+    Game board InProgress safeSpacesSet
+
+
+getSafeSpaces : Int -> Set Coordinates -> Set Coordinates
+getSafeSpaces size minesSet =
+    let
+        emptyList =
+            List.range 0 (size - 1)
+
+        safeSet =
+            emptyList
+                |> List.concatMap (\y -> List.map (\x -> ( x, y )) emptyList)
+                |> List.filter (\coords -> not (Set.member coords minesSet))
+                |> Set.fromList
+    in
+    safeSet
+
+
+updateSafeSpaces : List Coordinates -> Set Coordinates -> Set Coordinates
+updateSafeSpaces cleared remaining =
+    List.foldr Set.remove remaining cleared
 
 
 getSurroundingMinesDict : List Coordinates -> Dict Coordinates Int
@@ -109,56 +154,70 @@ initSpace coords minesSet borderDict =
                     Empty False
 
 
-clearSpaces : Coordinates -> Board -> ( Board, Bool )
-clearSpaces ( x, y ) board =
-    case Array.get y board of
+clearSpaces : Coordinates -> Game -> Game
+clearSpaces ( x, y ) game =
+    case Array.get y game.board of
         Nothing ->
-            ( board, False )
+            game
 
         Just row ->
             case Array.get x row of
                 Nothing ->
-                    ( board, False )
+                    game
 
                 Just space ->
-                    clearSpace ( x, y ) space board
+                    clearSpace ( x, y ) space game
 
 
-clearSpace : Coordinates -> Space -> Board -> ( Board, Bool )
-clearSpace ( x, y ) space board =
+clearSpace : Coordinates -> Space -> Game -> Game
+clearSpace coords space game =
+    let
+        updatedStatus =
+            if space == Mine False then
+                Lost
+
+            else
+                game.status
+
+        updatedSafeSpaces =
+            updateSafeSpaces [ coords ] game.remainingSafeSpaces
+    in
     case space of
         Mine False ->
-            ( setSpace ( x, y ) (Mine True) board, True )
+            { game
+                | board = setSpace coords (Mine True) game.board
+                , remainingSafeSpaces = updatedSafeSpaces
+                , status = updatedStatus
+            }
 
         Empty False ->
             let
-                updatedBoard =
-                    setSpace ( x, y ) (Empty True) board
+                tempBoard =
+                    setSpace coords (Empty True) game.board
+
+                tempGame =
+                    { game | board = tempBoard, remainingSafeSpaces = updatedSafeSpaces }
             in
-            ( clearEmptySpaces ( x, y ) updatedBoard, False )
+            clearEmptySpaces coords tempGame
 
         Border False n ->
-            ( setSpace ( x, y ) (Border True n) board, False )
+            { game
+                | board = setSpace coords (Border True n) game.board
+                , remainingSafeSpaces = updatedSafeSpaces
+                , status = updatedStatus
+            }
 
         _ ->
-            ( board, False )
+            game
 
 
-clearEmptySpaces : Coordinates -> Board -> Board
-clearEmptySpaces ( x, y ) board =
+clearEmptySpaces : Coordinates -> Game -> Game
+clearEmptySpaces ( x, y ) game =
     let
         surroundingCoords =
             getSurroundingCoordinates ( x, y )
-
-        clearSpacesHelper : Coordinates -> Board -> Board
-        clearSpacesHelper coords b =
-            let
-                ( boardAcc, gameOver ) =
-                    clearSpaces coords b
-            in
-            boardAcc
     in
-    List.foldr clearSpacesHelper board surroundingCoords
+    List.foldr clearSpaces game surroundingCoords
 
 
 setSpace : Coordinates -> Space -> Board -> Board
@@ -176,3 +235,13 @@ setSpace ( x, y ) space board =
                     Array.set y updatedRow board
             in
             updatedBoard
+
+
+checkIfPlayerWon : Game -> Game
+checkIfPlayerWon game =
+    case ( game.status, Set.isEmpty game.remainingSafeSpaces ) of
+        ( InProgress, True ) ->
+            { game | status = Won }
+
+        _ ->
+            game
