@@ -2,10 +2,11 @@ module Main exposing (Msg(..), main, update, view)
 
 import Array exposing (Array)
 import Browser exposing (Document)
-import Game exposing (Board, Coordinates, Game, Space(..), Status(..))
-import Html exposing (Html, button, div, text)
+import Game exposing (Board, Coordinates, Game, Space, SpaceKind(..), SpaceStatus(..), Status(..))
+import Html exposing (Attribute, Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
+import Json.Decode as Decode
 import Platform.Cmd exposing (Cmd)
 import Platform.Sub
 import Random
@@ -43,6 +44,7 @@ main =
 
 type Msg
     = ClearSpaces Coordinates
+    | FlagSpace Coordinates
     | NewGame Int (List Coordinates)
 
 
@@ -55,6 +57,13 @@ update msg model =
                     model
                         |> Game.clearSpaces ( x, y )
                         |> Game.checkIfPlayerWon
+            in
+            ( updatedModel, Platform.Cmd.none )
+
+        FlagSpace ( x, y ) ->
+            let
+                updatedModel =
+                    Game.toggleFlagSpace ( x, y ) model
             in
             ( updatedModel, Platform.Cmd.none )
 
@@ -126,27 +135,48 @@ viewSpace ( x, y ) space =
             ]
     in
     case space of
-        Mine True ->
+        ( Revealed, Mine ) ->
             div
                 (List.append [ style "border-style" "inset" ] spaceStyles)
                 [ text "X" ]
 
-        Border True n ->
+        ( Revealed, Border n ) ->
             div
                 (List.append [ style "border-style" "inset" ] spaceStyles)
                 [ text (String.fromInt n) ]
 
-        Empty True ->
+        ( Revealed, Empty ) ->
             div
                 (List.append [ style "border-style" "inset" ] spaceStyles)
                 []
+
+        ( Flagged, _ ) ->
+            div
+                (List.append
+                    [ style "border-style" "outset"
+                    , onRightClick (FlagSpace ( x, y ))
+                    ]
+                    spaceStyles
+                )
+                [ text "F" ]
 
         _ ->
             div
                 (List.append
                     [ style "border-style" "outset"
                     , onClick (ClearSpaces ( x, y ))
+                    , onRightClick (FlagSpace ( x, y ))
                     ]
                     spaceStyles
                 )
                 []
+
+
+onRightClick : Msg -> Attribute Msg
+onRightClick msg =
+    Html.Events.preventDefaultOn "contextmenu" (Decode.map alwaysPreventDefault (Decode.succeed msg))
+
+
+alwaysPreventDefault : Msg -> ( Msg, Bool )
+alwaysPreventDefault msg =
+    ( msg, True )
