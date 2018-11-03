@@ -1,40 +1,75 @@
 module Main exposing (Msg(..), main, update, view)
 
 import Array exposing (Array)
-import Browser
+import Browser exposing (Document)
 import Game exposing (Board, Coordinates, Game, Space(..), Status(..))
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
+import Platform.Cmd exposing (Cmd)
+import Platform.Sub
+import Random
+import Random.List
 
 
 type alias Model =
     Game
 
 
-init : Model
-init =
-    Game.new 10 [ ( 3, 4 ), ( 4, 4 ) ]
+init : () -> ( Model, Cmd Msg )
+init flags =
+    let
+        size =
+            10
+
+        coordsList =
+            Game.getAllCoords size
+
+        randomizeCoordsCmd =
+            Random.generate (NewGame size) (Random.List.shuffle coordsList)
+    in
+    ( Game.new 0 [], randomizeCoordsCmd )
 
 
+main : Program () Model Msg
 main =
-    Browser.sandbox { init = init, update = update, view = view }
+    Browser.document
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = \model -> Platform.Sub.none
+        }
 
 
 type Msg
     = ClearSpaces Coordinates
+    | NewGame Int (List Coordinates)
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ClearSpaces ( x, y ) ->
-            model
-                |> Game.clearSpaces ( x, y )
-                |> Game.checkIfPlayerWon
+            let
+                updatedModel =
+                    model
+                        |> Game.clearSpaces ( x, y )
+                        |> Game.checkIfPlayerWon
+            in
+            ( updatedModel, Platform.Cmd.none )
+
+        NewGame size randomCoords ->
+            let
+                mineCoords =
+                    List.take 12 randomCoords
+
+                updatedModel =
+                    Game.new size mineCoords
+            in
+            ( updatedModel, Platform.Cmd.none )
 
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
     let
         result =
@@ -47,11 +82,14 @@ view model =
 
                 Lost ->
                     "😵"
+
+        body =
+            div []
+                [ text result
+                , viewBoard model.board
+                ]
     in
-    div []
-        [ text result
-        , viewBoard model.board
-        ]
+    Document "Elm Minesweeper" [ body ]
 
 
 viewBoard : Board -> Html Msg

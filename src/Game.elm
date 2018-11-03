@@ -6,6 +6,7 @@ module Game exposing
     , Status(..)
     , checkIfPlayerWon
     , clearSpaces
+    , getAllCoords
     , new
     )
 
@@ -76,24 +77,21 @@ new size mineCoords =
     Game board InProgress safeSpacesSet
 
 
-getSafeSpaces : Int -> Set Coordinates -> Set Coordinates
-getSafeSpaces size minesSet =
+getAllCoords : Int -> List Coordinates
+getAllCoords size =
     let
         emptyList =
             List.range 0 (size - 1)
-
-        safeSet =
-            emptyList
-                |> List.concatMap (\y -> List.map (\x -> ( x, y )) emptyList)
-                |> List.filter (\coords -> not (Set.member coords minesSet))
-                |> Set.fromList
     in
-    safeSet
+    List.concatMap (\y -> List.map (\x -> ( x, y )) emptyList) emptyList
 
 
-updateSafeSpaces : List Coordinates -> Set Coordinates -> Set Coordinates
-updateSafeSpaces cleared remaining =
-    List.foldr Set.remove remaining cleared
+getSafeSpaces : Int -> Set Coordinates -> Set Coordinates
+getSafeSpaces size minesSet =
+    size
+        |> getAllCoords
+        |> List.filter (\coords -> not (Set.member coords minesSet))
+        |> Set.fromList
 
 
 getSurroundingMinesDict : List Coordinates -> Dict Coordinates Int
@@ -180,7 +178,7 @@ clearSpace coords space game =
                 game.status
 
         updatedSafeSpaces =
-            updateSafeSpaces [ coords ] game.remainingSafeSpaces
+            Set.remove coords game.remainingSafeSpaces
     in
     case space of
         Mine False ->
