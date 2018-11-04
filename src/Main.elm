@@ -17,17 +17,19 @@ type alias Model =
     Game
 
 
+defaultSize : Int
+defaultSize =
+    10
+
+
 init : () -> ( Model, Cmd Msg )
 init flags =
     let
-        size =
-            10
-
         coordsList =
-            Game.getAllCoords size
+            Game.getAllCoords defaultSize
 
         randomizeCoordsCmd =
-            Random.generate (NewGame size) (Random.List.shuffle coordsList)
+            Random.generate (NewGame defaultSize) (Random.List.shuffle coordsList)
     in
     ( Game.new 0 [], randomizeCoordsCmd )
 
@@ -46,6 +48,7 @@ type Msg
     = ClearSpaces Coordinates
     | FlagSpace Coordinates
     | NewGame Int (List Coordinates)
+    | ResetGame Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -77,6 +80,16 @@ update msg model =
             in
             ( updatedModel, Platform.Cmd.none )
 
+        ResetGame size ->
+            let
+                coordsList =
+                    Game.getAllCoords size
+
+                randomizeCoordsCmd =
+                    Random.generate (NewGame size) (Random.List.shuffle coordsList)
+            in
+            ( model, randomizeCoordsCmd )
+
 
 view : Model -> Document Msg
 view model =
@@ -95,36 +108,37 @@ view model =
         body =
             div [ style "text-align" "center" ]
                 [ div [ style "font-size" "30px" ] [ text result ]
-                , viewBoard model.board
+                , viewGame model
+                , viewReset model.status
                 ]
     in
     Document "Elm Minesweeper" [ body ]
 
 
-viewBoard : Board -> Html Msg
-viewBoard board =
+viewGame : Model -> Html Msg
+viewGame model =
     let
         rows =
-            board
-                |> Array.indexedMap viewRow
+            model.board
+                |> Array.indexedMap (viewRow model.status)
                 |> Array.toList
     in
     div [] rows
 
 
-viewRow : Int -> Array Space -> Html Msg
-viewRow y row =
+viewRow : Status -> Int -> Array Space -> Html Msg
+viewRow status y row =
     let
         spaces =
             row
-                |> Array.indexedMap (\x space -> viewSpace ( x, y ) space)
+                |> Array.indexedMap (\x space -> viewSpace status ( x, y ) space)
                 |> Array.toList
     in
     div [ style "display" "flex", style "justify-content" "center" ] spaces
 
 
-viewSpace : Coordinates -> Space -> Html Msg
-viewSpace ( x, y ) space =
+viewSpace : Status -> Coordinates -> Space -> Html Msg
+viewSpace status ( x, y ) space =
     let
         spaceStyles =
             [ style "width" "30px"
@@ -152,25 +166,65 @@ viewSpace ( x, y ) space =
                 []
 
         ( Flagged, _ ) ->
-            div
-                (List.append
-                    [ style "border-style" "outset"
-                    , onRightClick (FlagSpace ( x, y ))
-                    ]
-                    spaceStyles
-                )
-                [ text "F" ]
+            let
+                events =
+                    if status == InProgress then
+                        [ onRightClick (FlagSpace ( x, y )) ]
+                    else
+                        []
+
+                attrs =
+                    (style "border-style" "outset") :: events
+            in
+            div (List.append attrs spaceStyles ) [ text "F" ]
 
         _ ->
-            div
-                (List.append
-                    [ style "border-style" "outset"
-                    , onClick (ClearSpaces ( x, y ))
-                    , onRightClick (FlagSpace ( x, y ))
+            let
+                events =
+                    if status == InProgress then
+                        [ onClick (ClearSpaces ( x, y )) , onRightClick (FlagSpace ( x, y )) ]
+                    else
+                     []
+
+                attrs =
+                    (style "border-style" "outset") :: events
+            in
+            div (List.append attrs spaceStyles) []
+
+
+viewReset : Status -> Html Msg
+viewReset status =
+    let
+        buttonAttrs =
+            [ style "border" "none"
+            , style "color" "white"
+            , style "margin-top" "10px"
+            , style "padding" "15px 32px"
+            , style "text-align" "center"
+            , style "text-decoration" "none"
+            , style "display" "inline-block"
+            , style "font-size" "16px"
+            , onClick (ResetGame defaultSize)
+            ]
+
+        resetButton : String -> String -> Html Msg
+        resetButton colorCode contents =
+            Html.button (List.append
+                    [ style "background-color" colorCode
                     ]
-                    spaceStyles
+                    buttonAttrs
                 )
-                []
+            [ text contents ]
+    in
+    case status of
+        InProgress ->
+            text ""
+
+        Won ->
+            resetButton "#4caf50" "Play Again!"
+
+        Lost ->
+            resetButton "#f44336" "Try Again"
 
 
 onRightClick : Msg -> Attribute Msg
